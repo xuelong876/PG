@@ -37,7 +37,7 @@ jobs:
 
       # 3. 超过 31 天直接退出
       - name: Exit if commit is older than 31 days
-        if: ${{ steps.upstream_check.outputs.days_diff > 31 }}
+        if: ${{ steps.upstream_check.outputs.days_diff > 361 }}
         run: |
           echo "上游仓库最新 commit 已超过 31 天，退出工作流"
           exit 0
@@ -76,14 +76,15 @@ jobs:
       # 7. 执行根目录的 pg_json.py（脚本内容另行编写）
       - name: Run pg_json.py
         if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+      
         run: |
-          if [ ! -f "pg_json.py" ]; then
+          if [ ! -f "sync_pg_json.py" ]; then
             echo "错误: 仓库根目录未找到 pg_json.py"
             exit 1
           fi
-          cp pg_json.py extracted/
+          cp sync_pg_json.py extracted/
           cd extracted
-          python pg_json.py
+          python sync_pg_json.py
 
       # 8. 把解压后的所有文件和文件夹复制到当前仓库根目录
       #    （排除 .git，避免破坏仓库）
