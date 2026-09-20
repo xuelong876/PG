@@ -1,0 +1,159 @@
+name: Sync PG Files
+
+on:
+  schedule:
+    # 每月5号19点运行 (UTC时间，北京时间减8小时 → 11点UTC)
+    - cron: '0 11 5 * *'
+  workflow_dispatch: # 允许手动触发
+
+permissions:
+  contents: write   # 允许用 GITHUB_TOKEN 推送到当前仓库
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 检出当前仓库（拿 pg_json.py，并准备推送）
+      - name: Checkout current repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. 检查上游仓库最新 commit 时间
+      - name: Get upstream repo latest commit time
+        id: upstream_check
+        run: |
+          COMMIT_DATE=$(curl -s "https://api.github.com/repos/fish2018/PG/commits?per_page=1" \
+            | jq -r '.[0].commit.committer.date')
+
+          COMMIT_TIMESTAMP=$(date -d "$COMMIT_DATE" +%s)
+          CURRENT_TIMESTAMP=$(date +%s)
+          DAYS_DIFF=$(( (CURRENT_TIMESTAMP - COMMIT_TIMESTAMP) / 86400 ))
+
+          echo "commit_date=$COMMIT_DATE" >> $GITHUB_OUTPUT
+          echo "days_diff=$DAYS_DIFF" >> $GITHUB_OUTPUT
+          echo "上游最新 commit: $COMMIT_DATE （距今 $DAYS_DIFF 天）"
+
+      # 3. 超过 31 天直接退出
+      - name: Exit if commit is older than 31 days
+        if: ${{ steps.upstream_check.outputs.days_diff > 31 }}
+        run: |
+          echo "上游仓库最新 commit 已超过 31 天，退出工作流"
+          exit 0
+
+      # 4. 浅克隆上游仓库（只拉最新一版）
+      - name: Clone upstream repo (shallow)
+        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+        run: |
+          git clone --depth 1 https://github.com/fish2018/PG.git upstream
+          echo "克隆完成，仓库内容:"
+          ls -la upstream/
+
+      # 5. 解压 zip 到 extracted 目录
+      - name: Extract PG zip
+        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+        run: |
+          ZIP_FILE=$(find upstream -maxdepth 1 -iname "pg*.zip" -type f | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "未找到 pg*.zip 文件"
+            exit 1
+          fi
+          echo "找到 zip: $ZIP_FILE"
+
+          mkdir -p extracted
+          unzip -o "$ZIP_FILE" -d extracted/
+          echo "解压完成:"
+          ls -la extracted/
+
+      # 6. 配置 Python
+      - name: Setup Python
+        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # 7. 执行根目录的 pg_json.py（脚本内容另行编写）
+      - name: Run pg_json.py
+        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+        run: |
+          if [ ! -f "pg_json.py" ]; then
+            echo "错误: 仓库根目录未找到 pg_json.py"
+            exit 1
+          fi
+          cp pg_json.py extracted/
+          cd extracted
+          python pg_json.py
+
+      # 8. 把解压后的所有文件和文件夹复制到当前仓库根目录
+      #    （排除 .git，避免破坏仓库）
+      - name: Copy extracted files to repo root
+        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+        run: |
+          echo "复制解压内容到仓库根目录..."
+          # 用 rsync 排除 .git 目录，把 extracted/ 内容同步到仓库根
+          rsync -a --exclude='.git' extracted/ ./
+          echo "复制完成，仓库根目录:"
+          ls -la
+
+      # 9. 提交并推送到当前 GitHub 仓库
+      - name: Push to GitHub (current repo)
+        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "无变更，跳过 GitHub 推送"
+          else
+            git commit -m "Sync PG files from fish2018/PG - $(date +'%Y-%m-%d %H:%M:%S')"
+            git push
+          fi
+
+      # 10. 把 pg.jar 推送到 Gitee 仓库
+      - name: Push pg.jar to Gitee
+        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          PG_JAR=$(find extracted -name "pg.jar" -type f | head -n 1)
+          if [ -z "$PG_JAR" ]; then
+            echo "错误: 未找到 pg.jar"
+            exit 1
+          fi
+          echo "找到 pg.jar: $PG_JAR"
+
+          # 准备一个独立目录推送到 Gitee
+          mkdir -p /tmp/gitee_push
+          cp "$PG_JAR" /tmp/gitee_push/pg.jar
+          cd /tmp/gitee_push
+
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add origin https://xuelong88:${GITEE_TOKEN}@gitee.com/xuelong88/pg_box.git
+
+          # 拉取 Gitee 现有内容，保留其它文件
+          git pull origin master --allow-unrelated-histories || git pull origin main --allow-unrelated-histories || true
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Gitee 无变更，跳过推送"
+          else
+            git commit -m "Update pg.jar - $(date +'%Y-%m-%d %H:%M:%S')"
+            git branch -M main
+            git push -u origin main || git push -u origin master
+          fi
+
+      # 11. 执行总结
+      - name: Summary
+        if: always()
+        run: |
+          echo "上游最新 commit: ${{ steps.upstream_check.outputs.commit_date }}"
+          echo "距今: ${{ steps.upstream_check.outputs.days_diff }} 天"
+          if [ "${{ steps.upstream_check.outputs.days_diff }}" -gt 31 ]; then
+            echo "状态: 跳过（超 31 天）"
+          else
+            echo "状态: 已执行同步"
+          fi
