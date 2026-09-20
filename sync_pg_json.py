@@ -46,7 +46,7 @@ def add_emoji_to_name(name: str) -> str:
     """添加Emoji到名称，按列表顺序依次判断，命中第一条即返回"""
     rules = [
         ("startswith", "豆瓣", "🏠豆瓣 • PG👨"),
-        ("startswith", "网盘及弹幕", "⚙️网盘及弹幕配置👌"),
+        ("startswith", "网盘及彈幕配置", "⚙️网盘及弹幕配置👌"),
         ("startswith", "B站", "🅱️{name}👌"),
         ("startswith", "分享", "☁{name}👌"),
         ("endswith", ("分享","网盘", "搜索", "云搜"), "☁{name}👌"),
