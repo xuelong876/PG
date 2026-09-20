@@ -118,7 +118,7 @@ jobs:
       # 10. 把 pg.jar 推送到 Gitee 仓库
       - name: Push pg.jar to Gitee
        
-        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+        if: ${{ steps.upstream_check.outputs.days_diff <= 321 }}
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
