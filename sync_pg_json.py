@@ -11,8 +11,7 @@ CONFIG = {
     # 关键修改：默认输出到仓库根目录的 pg.json
     "output_path": os.environ.get(
         "PG_OUTPUT",
-        os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        os.path.join(os.environ.get("GITHUB_WORKSPACE", os.getcwd()),
             "pg.json",
         ),
     ),
