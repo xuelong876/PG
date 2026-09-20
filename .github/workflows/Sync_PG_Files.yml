@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 检出当前仓库（拿 pg_json.py，并准备推送）
+      # 1. 检出当前仓库（拿 sync_pg_json.py，并准备推送）
       - name: Checkout current repo
         uses: actions/checkout@v4
         with:
@@ -44,7 +44,7 @@ jobs:
 
       # 4. 浅克隆上游仓库（只拉最新一版）
       - name: Clone upstream repo (shallow)
-        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+        if: ${{ steps.upstream_check.outputs.days_diff <= 366 }}
         run: |
           git clone --depth 1 https://github.com/fish2018/PG.git upstream
           echo "克隆完成，仓库内容:"
@@ -52,7 +52,7 @@ jobs:
 
       # 5. 解压 zip 到 extracted 目录
       - name: Extract PG zip
-        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+        if: ${{ steps.upstream_check.outputs.days_diff <= 366 }}
         run: |
           ZIP_FILE=$(find upstream -maxdepth 1 -iname "pg*.zip" -type f | head -n 1)
           if [ -z "$ZIP_FILE" ]; then
@@ -68,18 +68,18 @@ jobs:
 
       # 6. 配置 Python
       - name: Setup Python
-        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+        if: ${{ steps.upstream_check.outputs.days_diff <= 366 }}
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
       # 7. 执行根目录的 pg_json.py（脚本内容另行编写）
       - name: Run pg_json.py
-        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+        if: ${{ steps.upstream_check.outputs.days_diff <= 366 }}
       
         run: |
           if [ ! -f "sync_pg_json.py" ]; then
-            echo "错误: 仓库根目录未找到 pg_json.py"
+            echo "错误: 仓库根目录未找到 sync_pg_json.py"
             exit 1
           fi
           cp sync_pg_json.py extracted/
@@ -89,7 +89,7 @@ jobs:
       # 8. 把解压后的所有文件和文件夹复制到当前仓库根目录
       #    （排除 .git，避免破坏仓库）
       - name: Copy extracted files to repo root
-        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+        if: ${{ steps.upstream_check.outputs.days_diff <= 366 }}
         run: |
           echo "复制解压内容到仓库根目录..."
           # 用 rsync 排除 .git 目录，把 extracted/ 内容同步到仓库根
@@ -99,7 +99,7 @@ jobs:
 
       # 9. 提交并推送到当前 GitHub 仓库
       - name: Push to GitHub (current repo)
-        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+        if: ${{ steps.upstream_check.outputs.days_diff <= 366 }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -114,7 +114,7 @@ jobs:
 
       # 10. 把 pg.jar 推送到 Gitee 仓库
       - name: Push pg.jar to Gitee
-        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
+        if: ${{ steps.upstream_check.outputs.days_diff <= 366 }}
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
