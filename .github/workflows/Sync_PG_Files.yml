@@ -37,14 +37,14 @@ jobs:
 
       # 3. 超过 31 天直接退出
       - name: Exit if commit is older than 31 days
-        if: ${{ steps.upstream_check.outputs.days_diff > 311}}
+        if: ${{ steps.upstream_check.outputs.days_diff > 31}}
         run: |
           echo "上游仓库最新 commit 已超过 31 天，退出工作流"
           exit 0
 
       # 4. 浅克隆上游仓库到 /tmp（不污染工作区）
       - name: Clone upstream repo (shallow)
-        if: ${{ steps.upstream_check.outputs.days_diff <= 321}}
+        if: ${{ steps.upstream_check.outputs.days_diff <= 31}}
         run: |
           rm -rf /tmp/upstream /tmp/extracted
           git clone --depth 1 https://github.com/fish2018/PG.git /tmp/upstream
@@ -53,7 +53,7 @@ jobs:
 
       # 5. 解压 zip 到 /tmp/extracted
       - name: Extract PG zip
-        if: ${{ steps.upstream_check.outputs.days_diff <= 321}}
+        if: ${{ steps.upstream_check.outputs.days_diff <= 31}}
         run: |
           ZIP_FILE=$(find /tmp/upstream -maxdepth 1 -iname "pg*.zip" -type f | head -n 1)
           if [ -z "$ZIP_FILE" ]; then
@@ -69,14 +69,14 @@ jobs:
 
       # 6. 配置 Python
       - name: Setup Python
-        if: ${{ steps.upstream_check.outputs.days_diff <= 321}}
+        if: ${{ steps.upstream_check.outputs.days_diff <= 31}}
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
       # 7. 执行根目录的 sync_pg_json.py，输出明确指向仓库根目录
       - name: Run sync_pg_json.py
-        if: ${{ steps.upstream_check.outputs.days_diff <= 321}}
+        if: ${{ steps.upstream_check.outputs.days_diff <= 31}}
         env:
           PG_OUTPUT: ${{ github.workspace }}/pg.json
         run: |
@@ -93,7 +93,7 @@ jobs:
 
       # 8. 把解压内容同步到仓库根目录（排除 .git）
       - name: Copy extracted files to repo root
-        if: ${{ steps.upstream_check.outputs.days_diff <= 321}}
+        if: ${{ steps.upstream_check.outputs.days_diff <= 31}}
         run: |
           echo "复制解压内容到仓库根目录..."
           rsync -a --exclude='.git' /tmp/extracted/ ./
@@ -102,7 +102,7 @@ jobs:
 
       # 9. 提交并推送到当前 GitHub 仓库
       - name: Push to GitHub (current repo)
-        if: ${{ steps.upstream_check.outputs.days_diff <= 321}}
+        if: ${{ steps.upstream_check.outputs.days_diff <= 31}}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -118,7 +118,7 @@ jobs:
       # 10. 把 pg.jar 推送到 Gitee 仓库
       - name: Push pg.jar to Gitee
        
-        if: ${{ steps.upstream_check.outputs.days_diff <= 321 }}
+        if: ${{ steps.upstream_check.outputs.days_diff <= 31 }}
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
